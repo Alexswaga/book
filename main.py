@@ -34,15 +34,23 @@ app.add_middleware(
 # Подключение статических файлов
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# ===== ИСПРАВЛЕННАЯ КОНФИГУРАЦИЯ ХЕШИРОВАНИЯ =====
+# Используем sha256_crypt для совместимости с существующими хешами
+pwd_context = CryptContext(
+    schemes=["sha256_crypt", "bcrypt"],  # Сначала пробуем sha256_crypt, потом bcrypt
+    deprecated="auto",
+    sha256_crypt__default_rounds=535000  # Совпадает с вашими хешами ($5$rounds=535000$...)
+)
+
 # Зависимости
 security = HTTPBearer()
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Вспомогательные функции
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
 def get_password_hash(password):
+    # Теперь будет создавать sha256_crypt хеши
     return pwd_context.hash(password)
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
@@ -111,6 +119,22 @@ def login(form_data: schemas.UserLogin, db: Session = Depends(get_db)):
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
+# Выход из системы
+@app.post("/logout")
+def logout(token: HTTPAuthorizationCredentials = Depends(security)):
+    """
+    Выход из системы.
+    На клиенте нужно удалить токен из localStorage.
+    """
+    # В этой простой реализации просто подтверждаем выход
+    # В production можно добавить токен в черный список
+    return {"message": "Successfully logged out", "success": True}
+
+# Получить информацию о текущем пользователе
+@app.get("/users/me", response_model=schemas.UserResponse)
+def read_users_me(current_user: models.User = Depends(get_current_user)):
+    return current_user
+
 # Книги
 @app.post("/books", response_model=schemas.BookResponse)
 def create_book(book: schemas.BookCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
@@ -130,6 +154,51 @@ def create_book(book: schemas.BookCreate, db: Session = Depends(get_db), current
 def read_books(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     books = db.query(models.Book).filter(models.Book.owner_id == current_user.id).all()
     return books
+
+# Получить одну книгу
+@app.get("/books/{book_id}", response_model=schemas.BookResponse)
+def read_book(book_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    book = db.query(models.Book).filter(
+        models.Book.id == book_id, 
+        models.Book.owner_id == current_user.id
+    ).first()
+    if book is None:
+        raise HTTPException(status_code=404, detail="Book not found")
+    return book
+
+# Обновить книгу
+@app.put("/books/{book_id}", response_model=schemas.BookResponse)
+def update_book(book_id: int, book_update: schemas.BookCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    book = db.query(models.Book).filter(
+        models.Book.id == book_id, 
+        models.Book.owner_id == current_user.id
+    ).first()
+    if book is None:
+        raise HTTPException(status_code=404, detail="Book not found")
+    
+    # Обновляем поля
+    book.title = book_update.title
+    book.author = book_update.author
+    book.description = book_update.description
+    book.total_pages = book_update.total_pages
+    
+    db.commit()
+    db.refresh(book)
+    return book
+
+# Удалить книгу
+@app.delete("/books/{book_id}")
+def delete_book(book_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    book = db.query(models.Book).filter(
+        models.Book.id == book_id, 
+        models.Book.owner_id == current_user.id
+    ).first()
+    if book is None:
+        raise HTTPException(status_code=404, detail="Book not found")
+    
+    db.delete(book)
+    db.commit()
+    return {"message": "Book deleted successfully", "success": True}
 
 # Прогресс чтения
 @app.post("/books/{book_id}/progress", response_model=schemas.ReadingProgressResponse)
