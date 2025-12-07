@@ -11,6 +11,7 @@ class BookBase(BaseModel):
     author: str
     description: Optional[str] = None
     total_pages: int
+    pdf_path: Optional[str] = None
 
 class ReviewBase(BaseModel):
     rating: int
@@ -29,17 +30,22 @@ class BookCreate(BookBase):
 class ReadingProgressCreate(BaseModel):
     current_page: int
 
-class ReviewCreate(ReviewBase):
-    pass
-
-class UserResponse(UserBase):
+class UserResponse(BaseModel):
     id: int
+    username: str
+    email: Optional[str] = None
     created_at: datetime
+    
+    class Config:
+        from_attributes = True
 
 class BookResponse(BookBase):
     id: int
     owner_id: int
     created_at: datetime
+    
+    class Config:
+        from_attributes = True
 
 class ReadingProgressResponse(BaseModel):
     id: int
@@ -48,16 +54,18 @@ class ReadingProgressResponse(BaseModel):
     current_page: int
     is_finished: bool
     updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+class ReviewCreate(ReviewBase):
+    pass
 
 class ReviewResponse(ReviewBase):
     id: int
     user_id: int
     book_id: int
     created_at: datetime
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-class TokenData(BaseModel):
-    username: Optional[str] = None
+    
+    class Config:
+        from_attributes = True

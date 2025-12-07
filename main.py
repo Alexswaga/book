@@ -1,3 +1,4 @@
+from fastapi import UploadFile, File, Form
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
@@ -140,20 +141,50 @@ def read_users_me(current_user: models.User = Depends(get_current_user)):
 
 # Книги
 @app.post("/books", response_model=schemas.BookResponse)
-def create_book(book: schemas.BookCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+@app.post("/books", response_model=schemas.BookResponse)
+async def create_book(
+    title: str = Form(...),
+    author: str = Form(...),
+    description: Optional[str] = Form(None),
+    total_pages: int = Form(...),
+    pdf_file: Optional[UploadFile] = File(None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    # Сохраняем PDF если есть
+    pdf_path = None
+    if pdf_file and pdf_file.filename:
+        import os
+        import uuid
+        # Создаем папку если нет
+        os.makedirs("uploads/pdf", exist_ok=True)
+        
+        # Генерируем уникальное имя файла
+        file_ext = os.path.splitext(pdf_file.filename)[1]
+        unique_filename = f"{uuid.uuid4()}{file_ext}"
+        pdf_path = os.path.join("uploads/pdf", unique_filename)
+        
+        # Сохраняем файл
+        with open(pdf_path, "wb") as buffer:
+            content = await pdf_file.read()
+            buffer.write(content)
+    
+    # Создаём книгу
     db_book = models.Book(
-        title=book.title,
-        author=book.author,
-        description=book.description,
-        total_pages=book.total_pages,
-        owner_id=current_user.id
+        title=title,
+        author=author,
+        description=description,
+        total_pages=total_pages,
+        pdf_path=pdf_path,  # сохраняем путь к PDF
+        owner_id=current_user.id,
+        created_at=datetime.now()
     )
+    
     db.add(db_book)
     db.commit()
     db.refresh(db_book)
+    
     return db_book
-
-@app.get("/books", response_model=List[schemas.BookResponse])
 def read_books(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     books = db.query(models.Book).filter(models.Book.owner_id == current_user.id).all()
     return books
@@ -275,6 +306,27 @@ def create_review(book_id: int, review: schemas.ReviewCreate, db: Session = Depe
     return db_review
 
 # Для PythonAnywhere
+@app.get("/books/{book_id}/pdf")
+async def get_book_pdf(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    book = db.query(models.Book).filter(
+        models.Book.id == book_id,
+        models.Book.owner_id == current_user.id
+    ).first()
+    
+    if not book or not book.pdf_path:
+        raise HTTPException(status_code=404, detail="PDF not found")
+    
+    from fastapi.responses import FileResponse
+    import os
+    
+    if not os.path.exists(book.pdf_path):
+        raise HTTPException(status_code=404, detail="PDF file not found")
+    
+    return FileResponse(book.pdf_path, filename=f"book_{book_id}.pdf")
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
