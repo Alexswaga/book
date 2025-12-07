@@ -1,5 +1,4 @@
-from fastapi import UploadFile, File, Form
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -7,6 +6,36 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
+from passlib.context import CryptContext
+from typing import Optional
+import models
+import schemas
+from database import engine, get_db
+from typing import List
+
+# Секретный ключ для JWT
+SECRET_KEY = "your-secret-key-change-in-production"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+# Создание таблиц
+models.Base.metadata.create_all(bind=engine)
+
+app = FastAPI(title="Book Tracker API")
+
+# CORS для PythonAnywhere
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Статические файлы
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# ... остальной код без изменений
 from passlib.context import CryptContext
 import models
 import schemas
