@@ -91,6 +91,9 @@ async def read_root():
 # Регистрация
 @app.post("/register", response_model=schemas.UserResponse)
 def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    # Generate email if not provided
+    if user.email is None or user.email == "":
+        user.email = f"{user.username}@booktracker.local"
     db_user = db.query(models.User).filter(models.User.username == user.username).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Username already registered")
