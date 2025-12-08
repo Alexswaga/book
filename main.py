@@ -22,13 +22,13 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 models.Base.metadata.create_all(bind=engine)
         
         # Дополнительная проверка и исправление структуры БД
-        try:
-            from check_and_fix_db import check_and_fix_database
-            check_and_fix_database()
-        except ImportError:
-            print("⚠️  Модуль check_and_fix_db не найден")
-        except Exception as e:
-            print(f"⚠️  Ошибка при проверке структуры БД: {e}")
+try:
+    from check_and_fix_db import check_and_fix_database
+    check_and_fix_database()
+except ImportError:
+    print("⚠️  Модуль check_and_fix_db не найден")
+except Exception as e:
+    print(f"⚠️  Ошибка при проверке структуры БД: {e}")
 
 app = FastAPI(title="Book Tracker API")
 
