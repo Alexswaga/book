@@ -35,35 +35,6 @@ app.add_middleware(
 # Статические файлы
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# ... остальной код без изменений
-from passlib.context import CryptContext
-import models
-import schemas
-from database import engine, get_db
-from typing import List
-
-# Секретный ключ для JWT
-SECRET_KEY = "your-secret-key-change-in-production"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
-# Создание таблиц
-models.Base.metadata.create_all(bind=engine)
-
-app = FastAPI(title="Book Tracker API")
-
-# CORS для PythonAnywhere
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Подключение статических файлов
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
 # ===== ИСПРАВЛЕННАЯ КОНФИГУРАЦИЯ ХЕШИРОВАНИЯ =====
 # Используем sha256_crypt для совместимости с существующими хешами
 pwd_context = CryptContext(
@@ -170,7 +141,6 @@ def read_users_me(current_user: models.User = Depends(get_current_user)):
 
 # Книги
 @app.post("/books", response_model=schemas.BookResponse)
-@app.post("/books", response_model=schemas.BookResponse)
 async def create_book(
     title: str = Form(...),
     author: str = Form(...),
@@ -212,9 +182,11 @@ async def create_book(
     db.add(db_book)
     db.commit()
     db.refresh(db_book)
-    
     return db_book
-def read_books(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+
+@app.get("/books", response_model=List[schemas.BookResponse])
+def get_books(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    """Получить все книги текущего пользователя"""
     books = db.query(models.Book).filter(models.Book.owner_id == current_user.id).all()
     return books
 
@@ -338,12 +310,11 @@ def create_review(book_id: int, review: schemas.ReviewCreate, db: Session = Depe
 @app.get("/books/{book_id}/pdf")
 async def get_book_pdf(
     book_id: int,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
+    """Получить PDF файл книги (временно без проверки владельца)"""
     book = db.query(models.Book).filter(
-        models.Book.id == book_id,
-        models.Book.owner_id == current_user.id
+        models.Book.id == book_id
     ).first()
     
     if not book or not book.pdf_path:
@@ -356,6 +327,7 @@ async def get_book_pdf(
         raise HTTPException(status_code=404, detail="PDF file not found")
     
     return FileResponse(book.pdf_path, filename=f"book_{book_id}.pdf")
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8005)
