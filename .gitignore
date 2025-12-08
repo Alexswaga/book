@@ -15,19 +15,12 @@ venv.bak/
 *.sqlite
 *.sqlite3
 
-# Uploads
-uploads/
+# Uploads - игнорируем все кроме .gitkeep
+uploads/*
 !uploads/.gitkeep
-
-# Migration files
-migrations/
-
-# Test files
-test_*.pdf
-
-# Scripts
-add_debug_to_displaybooks.sh
-disable_auth_for_pdf.py
+!uploads/pdf/
+uploads/pdf/*
+!uploads/pdf/.gitkeep
 
 # IDE
 .vscode/
